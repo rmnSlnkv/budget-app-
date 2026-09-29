@@ -25,7 +25,6 @@ export default function FloatingCoins() {
         };
 
         if (c.kind === "dollar") {
-          // Бумажная купюра: ширина ~2x высоты
           style.width = c.size * 2;
           style.height = c.size;
           style.fontSize = c.size * 0.5;
@@ -39,7 +38,6 @@ export default function FloatingCoins() {
         }
 
         if (c.kind === "bag") {
-          // Мешок с золотом: чуть выше, чем шире
           style.width = c.size;
           style.height = c.size * 1.1;
           return (
@@ -52,7 +50,6 @@ export default function FloatingCoins() {
           );
         }
 
-        // Рублёвая монетка
         style.width = c.size;
         style.height = c.size;
         style.fontSize = c.size * 0.55;
