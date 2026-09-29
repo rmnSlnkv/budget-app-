@@ -7,6 +7,7 @@ import MonthSelector from "./components/MonthSelector";
 import Summary from "./components/Summary";
 import SalaryForm from "./components/SalaryForm";
 import RecurringSettings from "./components/RecurringSettings";
+import BudgetProgress from "./components/BudgetProgress";
 import TransactionForm from "./components/TransactionForm";
 import TransactionList from "./components/TransactionList";
 import FloatingCoins from "./components/FloatingCoins";
@@ -51,29 +52,20 @@ function BudgetApp({ user }) {
     reminders_paid = {},
   } = data;
 
+  // --- Разовые расходы за выбранный месяц ---
   const monthTransactions = useMemo(() => {
-    const monthOverrides = overrides[selectedMonth] || {};
-    const fixed = recurring.map((r) => ({
-      id: `rec-${r.id}`,
-      recurringId: r.id,
-      type: r.type,
-      category: r.name,
-      amount: monthOverrides[r.id] ?? r.defaultAmount,
-      date: `${selectedMonth}-01`,
-      note: "Регулярная статья",
-      isRecurring: true,
-    }));
-    const oneOff = transactions.filter(
-      (t) => t.date.slice(0, 7) === selectedMonth,
-    );
-    return [...fixed, ...oneOff];
-  }, [selectedMonth, recurring, overrides, transactions]);
+    return transactions
+      .filter((t) => t.date.slice(0, 7) === selectedMonth)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [transactions, selectedMonth]);
 
+  // --- Итог по зарплатам за месяц ---
   const salaryTotal = useMemo(() => {
     const s = salaries[selectedMonth] || { husband: 0, wife: 0 };
     return (s.husband || 0) + (s.wife || 0);
   }, [salaries, selectedMonth]);
 
+  // --- Список месяцев, где есть данные ---
   const months = useMemo(() => {
     const set = new Set();
     transactions.forEach((t) => set.add(t.date.slice(0, 7)));
@@ -82,14 +74,28 @@ function BudgetApp({ user }) {
     return Array.from(set);
   }, [transactions, salaries]);
 
+  // --- Подсказки для поля «на что потратил» ---
+  // Сначала регулярные статьи, потом уже встречавшиеся категории
   const categorySuggestions = useMemo(() => {
-    const set = new Set();
-    transactions.forEach((t) => {
-      if (t.category) set.add(t.category.trim());
+    const regular = new Set();
+    recurring.forEach((r) => {
+      if (r.name) regular.add(r.name.trim());
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "ru"));
-  }, [transactions]);
 
+    const others = new Set();
+    transactions.forEach((t) => {
+      if (!t.category) return;
+      const name = t.category.trim();
+      if (!regular.has(name)) others.add(name);
+    });
+
+    return {
+      regular: Array.from(regular).sort((a, b) => a.localeCompare(b, "ru")),
+      others: Array.from(others).sort((a, b) => a.localeCompare(b, "ru")),
+    };
+  }, [recurring, transactions]);
+
+  // --- Действия ---
   const addTransaction = (item) => {
     update({
       transactions: [
@@ -103,28 +109,13 @@ function BudgetApp({ user }) {
       ],
     });
   };
-  const deleteTransaction = (id) =>
-    update({ transactions: transactions.filter((t) => t.id !== id) });
-  const setSalary = (newSalary) =>
-    update({ salaries: { ...salaries, [selectedMonth]: newSalary } });
 
-  const setRecurringAmount = (recurringId, value) => {
-    const num = parseFloat(value);
-    update({
-      overrides: {
-        ...overrides,
-        [selectedMonth]: {
-          ...(overrides[selectedMonth] || {}),
-          [recurringId]: isNaN(num) ? 0 : num,
-        },
-      },
-    });
+  const deleteTransaction = (id) => {
+    update({ transactions: transactions.filter((t) => t.id !== id) });
   };
 
-  const resetRecurringAmount = (recurringId) => {
-    const copy = { ...(overrides[selectedMonth] || {}) };
-    delete copy[recurringId];
-    update({ overrides: { ...overrides, [selectedMonth]: copy } });
+  const setSalary = (newSalary) => {
+    update({ salaries: { ...salaries, [selectedMonth]: newSalary } });
   };
 
   const toggleReminderPaid = (id, monthKey) => {
@@ -145,6 +136,7 @@ function BudgetApp({ user }) {
   return (
     <div className="app">
       <FloatingCoins />
+
       <div className="user-bar">
         <span className="user-email">{user.email}</span>
         <span className={`save-status ${saving ? "saving" : ""}`}>
@@ -154,12 +146,14 @@ function BudgetApp({ user }) {
           Выйти
         </button>
       </div>
+
       <Reminders
         reminders={reminders}
         onChange={(newReminders) => update({ reminders: newReminders })}
         paid={reminders_paid}
         onTogglePaid={toggleReminderPaid}
       />
+
       <header>
         <MonthSelector
           months={months}
@@ -167,54 +161,33 @@ function BudgetApp({ user }) {
           onChange={setSelectedMonth}
         />
       </header>
+
       <SalaryForm
         salary={salaries[selectedMonth] || { husband: 0, wife: 0 }}
         onChange={setSalary}
       />
+
       <Summary transactions={monthTransactions} salaryTotal={salaryTotal} />
+
       <RecurringSettings
         recurring={recurring}
         onChange={(newRecurring) => update({ recurring: newRecurring })}
       />
-      <section className="month-recurring">
-        <h3>📅 Регулярные статьи за выбранный месяц</h3>
-        <ul className="recurring-list month-view">
-          {recurring.map((r) => {
-            const monthOverrides = overrides[selectedMonth] || {};
-            const value = monthOverrides[r.id] ?? r.defaultAmount;
-            const isChanged =
-              monthOverrides[r.id] !== undefined &&
-              monthOverrides[r.id] !== r.defaultAmount;
-            return (
-              <li key={r.id}>
-                <span className="rec-name">{r.name}</span>
-                <input
-                  type="number"
-                  value={value}
-                  onChange={(e) => setRecurringAmount(r.id, e.target.value)}
-                  min="0"
-                  step="100"
-                />
-                {isChanged && (
-                  <button
-                    className="reset-btn"
-                    onClick={() => resetRecurringAmount(r.id)}
-                    title={`Сбросить к ${r.defaultAmount}`}
-                  >
-                    ↺
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+
+      <BudgetProgress
+        recurring={recurring}
+        transactions={transactions}
+        overrides={overrides}
+        selectedMonth={selectedMonth}
+      />
+
       <TransactionForm
         onAdd={addTransaction}
         suggestions={categorySuggestions}
       />
+
       <TransactionList
-        transactions={monthTransactions.filter((t) => !t.isRecurring)}
+        transactions={monthTransactions}
         onDelete={deleteTransaction}
       />
     </div>
