@@ -1,39 +1,58 @@
-import { useMemo, useState } from "react";
-import { useLocalStorage } from "./hooks/useLocalStorage";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "./lib/supabaseClient";
+import { useSupabaseData } from "./hooks/useSupabaseData";
 import { getMonthKey } from "./utils/format";
-import MonthSelector from "./сomponents/MonthSelector";
-import Summary from "./сomponents/Summary";
-import SalaryForm from "./сomponents/SalaryForm";
-import RecurringSettings from "./сomponents/RecurringSettings";
-import TransactionForm from "./сomponents/TransactionForm";
-import TransactionList from "./сomponents/TransactionList";
-import FloatingCoins from "./сomponents/FloatingCoins";
-import Reminders from "./сomponents/Reminders";
+import Auth from "./components/Auth";
+import MonthSelector from "./components/MonthSelector";
+import Summary from "./components/Summary";
+import SalaryForm from "./components/SalaryForm";
+import RecurringSettings from "./components/RecurringSettings";
+import TransactionForm from "./components/TransactionForm";
+import TransactionList from "./components/TransactionList";
+import FloatingCoins from "./components/FloatingCoins";
+import Reminders from "./components/Reminders";
 import "./App.css";
 
 export default function App() {
-  const [transactions, setTransactions] = useLocalStorage(
-    "budget-transactions",
-    [],
-  );
-  const [salaries, setSalaries] = useLocalStorage("budget-salaries", {});
-  const [recurring, setRecurring] = useLocalStorage("budget-recurring", [
-    { id: "food", name: "Еда", defaultAmount: 30000, type: "expense" },
-    { id: "rent", name: "Квартира", defaultAmount: 40000, type: "expense" },
-  ]);
-  const [overrides, setOverrides] = useLocalStorage("budget-overrides", {});
-  const [reminders, setReminders] = useLocalStorage("budget-reminders", []);
-  const [remindersPaid, setRemindersPaid] = useLocalStorage(
-    "budget-reminders-paid",
-    {},
-  );
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) =>
+      setUser(session?.user ?? null),
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (authLoading) return <div className="loading-screen">Загрузка…</div>;
+  if (!user) return <Auth />;
+
+  return <BudgetApp user={user} />;
+}
+
+function BudgetApp({ user }) {
+  const { data, update, loading, saving } = useSupabaseData(user);
   const [selectedMonth, setSelectedMonth] = useState(getMonthKey());
 
-  // --- Операции выбранного месяца: регулярные + разовые ---
+  const {
+    transactions = [],
+    salaries = {},
+    recurring = [],
+    overrides = {},
+    reminders = [],
+    reminders_paid = {},
+  } = data;
+
   const monthTransactions = useMemo(() => {
     const monthOverrides = overrides[selectedMonth] || {};
-
     const fixed = recurring.map((r) => ({
       id: `rec-${r.id}`,
       recurringId: r.id,
@@ -44,21 +63,17 @@ export default function App() {
       note: "Регулярная статья",
       isRecurring: true,
     }));
-
     const oneOff = transactions.filter(
       (t) => t.date.slice(0, 7) === selectedMonth,
     );
-
     return [...fixed, ...oneOff];
   }, [selectedMonth, recurring, overrides, transactions]);
 
-  // --- Итог по зарплатам за месяц ---
   const salaryTotal = useMemo(() => {
     const s = salaries[selectedMonth] || { husband: 0, wife: 0 };
     return (s.husband || 0) + (s.wife || 0);
   }, [salaries, selectedMonth]);
 
-  // --- Список месяцев, где есть данные ---
   const months = useMemo(() => {
     const set = new Set();
     transactions.forEach((t) => set.add(t.date.slice(0, 7)));
@@ -67,7 +82,6 @@ export default function App() {
     return Array.from(set);
   }, [transactions, salaries]);
 
-  // --- Подсказки для поля «на что потратил» ---
   const categorySuggestions = useMemo(() => {
     const set = new Set();
     transactions.forEach((t) => {
@@ -76,34 +90,33 @@ export default function App() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "ru"));
   }, [transactions]);
 
-  // --- Действия ---
-  const addTransaction = (data) => {
-    setTransactions([
-      ...transactions,
-      {
-        ...data,
-        id: crypto.randomUUID(),
-        type: "expense",
-        createdAt: Date.now(),
-      },
-    ]);
+  const addTransaction = (item) => {
+    update({
+      transactions: [
+        ...transactions,
+        {
+          ...item,
+          id: crypto.randomUUID(),
+          type: "expense",
+          createdAt: Date.now(),
+        },
+      ],
+    });
   };
-
-  const deleteTransaction = (id) => {
-    setTransactions(transactions.filter((t) => t.id !== id));
-  };
-
-  const setSalary = (newSalary) => {
-    setSalaries({ ...salaries, [selectedMonth]: newSalary });
-  };
+  const deleteTransaction = (id) =>
+    update({ transactions: transactions.filter((t) => t.id !== id) });
+  const setSalary = (newSalary) =>
+    update({ salaries: { ...salaries, [selectedMonth]: newSalary } });
 
   const setRecurringAmount = (recurringId, value) => {
     const num = parseFloat(value);
-    setOverrides({
-      ...overrides,
-      [selectedMonth]: {
-        ...(overrides[selectedMonth] || {}),
-        [recurringId]: isNaN(num) ? 0 : num,
+    update({
+      overrides: {
+        ...overrides,
+        [selectedMonth]: {
+          ...(overrides[selectedMonth] || {}),
+          [recurringId]: isNaN(num) ? 0 : num,
+        },
       },
     });
   };
@@ -111,31 +124,42 @@ export default function App() {
   const resetRecurringAmount = (recurringId) => {
     const copy = { ...(overrides[selectedMonth] || {}) };
     delete copy[recurringId];
-    setOverrides({ ...overrides, [selectedMonth]: copy });
+    update({ overrides: { ...overrides, [selectedMonth]: copy } });
   };
 
   const toggleReminderPaid = (id, monthKey) => {
-    const forId = remindersPaid[id] || {};
+    const forId = reminders_paid[id] || {};
     const next = { ...forId };
-    if (next[monthKey]) {
-      delete next[monthKey];
-    } else {
-      next[monthKey] = true;
-    }
-    setRemindersPaid({ ...remindersPaid, [id]: next });
+    if (next[monthKey]) delete next[monthKey];
+    else next[monthKey] = true;
+    update({ reminders_paid: { ...reminders_paid, [id]: next } });
   };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (loading)
+    return <div className="loading-screen">Загружаем ваш бюджет…</div>;
 
   return (
     <div className="app">
       <FloatingCoins />
-
+      <div className="user-bar">
+        <span className="user-email">{user.email}</span>
+        <span className={`save-status ${saving ? "saving" : ""}`}>
+          {saving ? "💾 Сохранение…" : "✓ Сохранено"}
+        </span>
+        <button className="logout-btn" onClick={handleLogout}>
+          Выйти
+        </button>
+      </div>
       <Reminders
         reminders={reminders}
-        onChange={setReminders}
-        paid={remindersPaid}
+        onChange={(newReminders) => update({ reminders: newReminders })}
+        paid={reminders_paid}
         onTogglePaid={toggleReminderPaid}
       />
-
       <header>
         <MonthSelector
           months={months}
@@ -143,16 +167,15 @@ export default function App() {
           onChange={setSelectedMonth}
         />
       </header>
-
       <SalaryForm
         salary={salaries[selectedMonth] || { husband: 0, wife: 0 }}
         onChange={setSalary}
       />
-
       <Summary transactions={monthTransactions} salaryTotal={salaryTotal} />
-
-      <RecurringSettings recurring={recurring} onChange={setRecurring} />
-
+      <RecurringSettings
+        recurring={recurring}
+        onChange={(newRecurring) => update({ recurring: newRecurring })}
+      />
       <section className="month-recurring">
         <h3>📅 Регулярные статьи за выбранный месяц</h3>
         <ul className="recurring-list month-view">
@@ -162,7 +185,6 @@ export default function App() {
             const isChanged =
               monthOverrides[r.id] !== undefined &&
               monthOverrides[r.id] !== r.defaultAmount;
-
             return (
               <li key={r.id}>
                 <span className="rec-name">{r.name}</span>
@@ -187,12 +209,10 @@ export default function App() {
           })}
         </ul>
       </section>
-
       <TransactionForm
         onAdd={addTransaction}
         suggestions={categorySuggestions}
       />
-
       <TransactionList
         transactions={monthTransactions.filter((t) => !t.isRecurring)}
         onDelete={deleteTransaction}

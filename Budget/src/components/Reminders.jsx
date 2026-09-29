@@ -151,7 +151,7 @@ export default function Reminders({ reminders, onChange, paid, onTogglePaid }) {
           <form className="reminders-form" onSubmit={submit}>
             <input
               type="text"
-              placeholder="Название (Квартплата, Страховка…)"
+              placeholder="Название"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
