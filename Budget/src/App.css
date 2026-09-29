@@ -286,6 +286,10 @@ header {
 .rec-name {
   flex: 1;
   font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recurring-list input {
@@ -294,6 +298,7 @@ header {
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 13px;
+  flex-shrink: 0;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -312,6 +317,7 @@ header {
   font-size: 18px;
   cursor: pointer;
   padding: 0 4px;
+  flex-shrink: 0;
   transition:
     color 0.15s ease,
     transform 0.15s ease;
@@ -392,9 +398,25 @@ header {
   border-radius: 8px;
   font-size: 14px;
   width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
+}
+
+/* Особенно важно для type="date" — выравнивает высоту и шрифт */
+.transaction-form input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 44px;
+  line-height: 1.2;
+  font-family: inherit;
+}
+
+/* На iOS Safari убирает лишний внутренний паддинг у date-инпута */
+.transaction-form input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
 }
 
 .transaction-form input:focus,
@@ -426,6 +448,12 @@ header {
 
 .transaction-form button[type="submit"]:active {
   transform: scale(0.97);
+}
+
+/* Общие правила для всех полей даты и числа */
+input[type="date"],
+input[type="number"] {
+  font-family: inherit;
 }
 
 /* ==================== СПИСОК ОПЕРАЦИЙ ==================== */
@@ -544,7 +572,6 @@ li.income .tx-amount {
   opacity: 0.55;
 }
 
-/* --- Рублёвая монетка --- */
 .coin {
   display: flex;
   align-items: center;
@@ -561,7 +588,6 @@ li.income .tx-amount {
     inset 0 2px 4px rgba(255, 255, 255, 0.5);
 }
 
-/* --- Долларовая купюра --- */
 .bill {
   display: flex;
   align-items: center;
@@ -635,7 +661,7 @@ li.income .tx-amount {
   }
 }
 
-/* ==================== НАПОМИНАНИЯ (в потоке) ==================== */
+/* ==================== НАПОМИНАНИЯ (в потоке, фиксированы в углу) ==================== */
 .reminders-block {
   position: fixed;
   top: 16px;
@@ -657,11 +683,35 @@ li.income .tx-amount {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  gap: 8px;
 }
 
 .reminders-block-header h3 {
   font-size: 15px;
   color: #333;
+  min-width: 0;
+}
+
+.reminders-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.reminders-close-mobile {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: #999;
+  padding: 0 4px;
+}
+
+.reminders-close-mobile:hover {
+  color: #dc2626;
 }
 
 .reminders-add-btn {
@@ -673,6 +723,7 @@ li.income .tx-amount {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   transition:
     background 0.15s ease,
     border-color 0.15s ease;
@@ -699,6 +750,7 @@ li.income .tx-amount {
   border-radius: 8px;
   font-size: 13px;
   width: 100%;
+  font-family: inherit;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -856,6 +908,132 @@ li.income .tx-amount {
   padding: 16px 0;
 }
 
+/* ==================== КНОПКА-КОЛОКОЛЬЧИК (видна только на мобильных) ==================== */
+.reminders-toggle-mobile {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: white;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 60;
+}
+
+.reminders-toggle-mobile .reminders-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #dc2626;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reminders-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 55;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ==================== АДАПТИВ ==================== */
+@media (max-width: 1024px) {
+  /* На планшетах и уже — блок напоминаний превращается в модальное окно */
+  .reminders-toggle-mobile {
+    display: flex;
+  }
+
+  .reminders-backdrop.open {
+    display: block;
+  }
+
+  .reminders-block {
+    position: fixed;
+    top: 60px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    z-index: 60;
+    display: none;
+  }
+
+  .reminders-block.open {
+    display: block;
+  }
+
+  .reminders-close-mobile {
+    display: flex;
+  }
+}
+
+@media (min-width: 1025px) {
+  .reminders-close-mobile,
+  .reminders-backdrop {
+    display: none !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+  .salary-row {
+    grid-template-columns: 1fr;
+  }
+  .month-selector {
+    width: 100%;
+  }
+  .month-selector select {
+    flex: 1;
+  }
+
+  /* Форма добавления регулярной статьи: название — на всю ширину,
+     сумма и кнопка — в одну строку, кнопка растягивается */
+  .recurring-add {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .recurring-add input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .recurring-add button {
+    width: 100%;
+  }
+
+  /* Строки регулярных статей: название обрезается, сумма и крестик справа */
+  .recurring-list li {
+    gap: 6px;
+  }
+
+  .recurring-list input {
+    width: 96px;
+    flex-shrink: 0;
+  }
+}
+
 @media (max-width: 480px) {
   .reminders-row {
     grid-template-columns: 1fr 1fr;
@@ -870,8 +1048,7 @@ li.income .tx-amount {
   .coin,
   .bill,
   .summary-card,
-  .summary-card.balance.positive,
-  .reminders-badge {
+  .summary-card.balance.positive {
     animation: none !important;
   }
 

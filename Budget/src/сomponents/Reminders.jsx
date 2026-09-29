@@ -25,6 +25,7 @@ function monthName(mm) {
 export default function Reminders({ reminders, onChange, paid, onTogglePaid }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [openMobile, setOpenMobile] = useState(false);
 
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -45,6 +46,10 @@ export default function Reminders({ reminders, onChange, paid, onTogglePaid }) {
       })
       .sort((a, b) => a.key.localeCompare(b.key));
   }, [reminders, paid, nowKey]);
+
+  const urgentCount = decorated.filter(
+    (d) => !d.isPaid && (d.isPast || d.isCurrent),
+  ).length;
 
   const resetForm = () => {
     setTitle("");
@@ -87,6 +92,7 @@ export default function Reminders({ reminders, onChange, paid, onTogglePaid }) {
     setYear(r.year);
     setNote(r.note || "");
     setShowForm(true);
+    setOpenMobile(true);
   };
 
   const remove = (id) => {
@@ -95,113 +101,146 @@ export default function Reminders({ reminders, onChange, paid, onTogglePaid }) {
   };
 
   return (
-    <section className="reminders-block">
-      <div className="reminders-block-header">
-        <h3>📌 Обязательные траты</h3>
-        {!showForm && (
-          <button
-            type="button"
-            className="reminders-add-btn"
-            onClick={() => setShowForm(true)}
-          >
-            + Добавить
-          </button>
+    <>
+      {/* Кнопка-колокольчик — видна только на мобильных */}
+      <button
+        type="button"
+        className="reminders-toggle-mobile"
+        onClick={() => setOpenMobile(true)}
+        aria-label="Открыть напоминания"
+      >
+        🔔
+        {urgentCount > 0 && (
+          <span className="reminders-badge">{urgentCount}</span>
         )}
-      </div>
+      </button>
 
-      {showForm && (
-        <form className="reminders-form" onSubmit={submit}>
-          <input
-            type="text"
-            placeholder="Название"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-          <div className="reminders-row">
+      {/* Затемнение за модальным окном — только на мобильных */}
+      <button
+        type="button"
+        className={`reminders-backdrop ${openMobile ? "open" : ""}`}
+        onClick={() => setOpenMobile(false)}
+        aria-label="Закрыть напоминания"
+      />
+
+      <section className={`reminders-block ${openMobile ? "open" : ""}`}>
+        <div className="reminders-block-header">
+          <h3>📌 Обязательные траты</h3>
+          <div className="reminders-header-actions">
+            {!showForm && (
+              <button
+                type="button"
+                className="reminders-add-btn"
+                onClick={() => setShowForm(true)}
+              >
+                + Добавить
+              </button>
+            )}
+            <button
+              type="button"
+              className="reminders-close-mobile"
+              onClick={() => setOpenMobile(false)}
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {showForm && (
+          <form className="reminders-form" onSubmit={submit}>
             <input
-              type="number"
-              placeholder="Сумма"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              min="0"
-              step="100"
+              type="text"
+              placeholder="Название (Квартплата, Страховка…)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               required
             />
-            <select value={month} onChange={(e) => setMonth(e.target.value)}>
-              {MONTHS.map((m) => (
-                <option key={m} value={m}>
-                  {monthName(m)}
-                </option>
-              ))}
-            </select>
+            <div className="reminders-row">
+              <input
+                type="number"
+                placeholder="Сумма"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min="0"
+                step="100"
+                required
+              />
+              <select value={month} onChange={(e) => setMonth(e.target.value)}>
+                {MONTHS.map((m) => (
+                  <option key={m} value={m}>
+                    {monthName(m)}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                min="2000"
+                max="2100"
+                step="1"
+              />
+            </div>
             <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              min="2000"
-              max="2100"
-              step="1"
+              type="text"
+              placeholder="Комментарий (необязательно)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
             />
-          </div>
-          <input
-            type="text"
-            placeholder="Комментарий (необязательно)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <div className="reminders-actions">
-            <button type="submit">
-              {editingId ? "Сохранить" : "Добавить"}
-            </button>
-            <button type="button" onClick={resetForm} className="ghost">
-              Отмена
-            </button>
-          </div>
-        </form>
-      )}
+            <div className="reminders-actions">
+              <button type="submit">
+                {editingId ? "Сохранить" : "Добавить"}
+              </button>
+              <button type="button" onClick={resetForm} className="ghost">
+                Отмена
+              </button>
+            </div>
+          </form>
+        )}
 
-      {decorated.length === 0 ? (
-        <p className="reminders-empty">Пока нет напоминаний</p>
-      ) : (
-        <ul className="reminders-list">
-          {decorated.map((r) => (
-            <li
-              key={r.id}
-              className={[
-                r.isPaid ? "paid" : "",
-                r.isPast ? "past" : "",
-                r.isCurrent ? "current" : "",
-              ]
-                .join(" ")
-                .trim()}
-            >
-              <label className="reminders-check">
-                <input
-                  type="checkbox"
-                  checked={r.isPaid}
-                  onChange={() => onTogglePaid(r.id, r.key)}
-                />
-                <span className="reminders-info">
-                  <span className="reminders-title">{r.title}</span>
-                  <span className="reminders-meta">
-                    {formatMonthLabel(r.key)} · {formatMoney(r.amount)}
-                    {r.note && ` · ${r.note}`}
+        {decorated.length === 0 ? (
+          <p className="reminders-empty">Пока нет напоминаний</p>
+        ) : (
+          <ul className="reminders-list">
+            {decorated.map((r) => (
+              <li
+                key={r.id}
+                className={[
+                  r.isPaid ? "paid" : "",
+                  r.isPast ? "past" : "",
+                  r.isCurrent ? "current" : "",
+                ]
+                  .join(" ")
+                  .trim()}
+              >
+                <label className="reminders-check">
+                  <input
+                    type="checkbox"
+                    checked={r.isPaid}
+                    onChange={() => onTogglePaid(r.id, r.key)}
+                  />
+                  <span className="reminders-info">
+                    <span className="reminders-title">{r.title}</span>
+                    <span className="reminders-meta">
+                      {formatMonthLabel(r.key)} · {formatMoney(r.amount)}
+                      {r.note && ` · ${r.note}`}
+                    </span>
                   </span>
-                </span>
-              </label>
-              <div className="reminders-item-actions">
-                <button onClick={() => startEdit(r)} title="Редактировать">
-                  ✎
-                </button>
-                <button onClick={() => remove(r.id)} title="Удалить">
-                  ×
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+                </label>
+                <div className="reminders-item-actions">
+                  <button onClick={() => startEdit(r)} title="Редактировать">
+                    ✎
+                  </button>
+                  <button onClick={() => remove(r.id)} title="Удалить">
+                    ×
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
   );
 }
