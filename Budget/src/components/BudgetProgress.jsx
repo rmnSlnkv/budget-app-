@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { formatMoney } from "../utils/format";
 
 const normalize = (s) => (s || "").trim().toLowerCase();
@@ -7,6 +8,7 @@ export default function BudgetProgress({
   transactions,
   overrides,
   selectedMonth,
+  onChangePlan,
 }) {
   if (recurring.length === 0) {
     return (
@@ -22,12 +24,10 @@ export default function BudgetProgress({
 
   const monthOverrides = overrides[selectedMonth] || {};
 
-  // Разовые расходы за выбранный месяц
   const monthTransactions = transactions.filter(
     (t) => t.date.slice(0, 7) === selectedMonth,
   );
 
-  // Для каждой регулярной статьи — сколько потрачено
   const rows = recurring.map((r) => {
     const plan = monthOverrides[r.id] ?? r.defaultAmount;
     const key = normalize(r.name);
@@ -55,7 +55,6 @@ export default function BudgetProgress({
     };
   });
 
-  // Расходы без совпадения с регулярными — «Прочее»
   const recurringNames = new Set(recurring.map((r) => normalize(r.name)));
   const otherSpent = monthTransactions
     .filter((t) => !recurringNames.has(normalize(t.category)))
@@ -95,9 +94,20 @@ export default function BudgetProgress({
           >
             <div className="budget-row-header">
               <span className="budget-row-name">{r.name}</span>
-              <span className="budget-row-amounts">
-                {formatMoney(r.spent)} / {formatMoney(r.plan)}
-              </span>
+              <div className="budget-row-edit">
+                <input
+                  type="number"
+                  className="budget-plan-input"
+                  value={r.plan || ""}
+                  onChange={(e) => onChangePlan(r.id, e.target.value)}
+                  min="0"
+                  step="100"
+                  placeholder="0"
+                />
+                <span className="budget-row-spent">
+                  потрачено {formatMoney(r.spent)}
+                </span>
+              </div>
             </div>
             <div className="budget-row-bar">
               <div

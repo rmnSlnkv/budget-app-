@@ -75,7 +75,6 @@ function BudgetApp({ user }) {
   }, [transactions, salaries]);
 
   // --- Подсказки для поля «на что потратил» ---
-  // Сначала регулярные статьи, потом уже встречавшиеся категории
   const categorySuggestions = useMemo(() => {
     const regular = new Set();
     recurring.forEach((r) => {
@@ -116,6 +115,20 @@ function BudgetApp({ user }) {
 
   const setSalary = (newSalary) => {
     update({ salaries: { ...salaries, [selectedMonth]: newSalary } });
+  };
+
+  // --- Редактирование плана на конкретный месяц ---
+  const setPlanForMonth = (recurringId, value) => {
+    const num = parseFloat(value);
+    update({
+      overrides: {
+        ...overrides,
+        [selectedMonth]: {
+          ...(overrides[selectedMonth] || {}),
+          [recurringId]: isNaN(num) ? 0 : num,
+        },
+      },
+    });
   };
 
   const toggleReminderPaid = (id, monthKey) => {
@@ -179,6 +192,7 @@ function BudgetApp({ user }) {
         transactions={transactions}
         overrides={overrides}
         selectedMonth={selectedMonth}
+        onChangePlan={setPlanForMonth}
       />
 
       <TransactionForm

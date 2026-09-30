@@ -44,10 +44,11 @@ export default function RecurringSettings({ recurring, onChange }) {
             <span className="rec-name">{r.name}</span>
             <input
               type="number"
-              value={r.defaultAmount}
+              value={r.defaultAmount || ""}
               onChange={(e) => updateAmount(r.id, e.target.value)}
               min="0"
               step="100"
+              placeholder="0"
             />
             <button onClick={() => removeItem(r.id)} aria-label="Удалить">
               ×
